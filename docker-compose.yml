@@ -1,0 +1,48 @@
+
+services:
+  # 1. Ollama LLM Service (The AI Brain)
+  ollama:
+    # Use the official Ollama image
+    image: ollama/ollama:latest
+    container_name: health_ai_ollama
+    # Expose the standard Ollama API port (11434)
+    ports:
+      - "11434:11434"
+    volumes:
+      # Persist the models and data outside the container
+      - ollama_models:/root/.ollama
+    command: >
+      /bin/sh -c "
+      ollama serve & 
+      # Wait for the server to start, then download Llama3
+      sleep 10 && ollama pull llama3:8b
+      "
+    # Restart if it crashes
+    restart: always
+
+  # 2. Streamlit Application Service (The Frontend and Tool Executor)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: health_ai_assistant
+    ports:
+      - "8501:8501"
+    environment:
+      # Pass the API URL to the app's environment
+      # NOTE: Uses the Docker service name 'ollama' instead of 'localhost'
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      # Bind mount the project folder to allow live code updates if needed
+      - .:/app
+      # Crucially, bind mount the .env and token files
+      - ./token.json:/app/token.json
+      - ./polar_token.json:/app/polar_token.json
+      - ./.env:/app/.env
+    # The application code (app.py) runs inside this container
+    depends_on:
+      - ollama
+
+# Define the volume for persistent model storage
+volumes:
+  ollama_models:
